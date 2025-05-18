@@ -29,8 +29,13 @@ func checkPassword(password string) error {
 var (
 	connections = make(map[*websocket.Conn]string)
 	mu          sync.Mutex
-	upgrade     = websocket.Upgrader{}
 )
+
+var upgrader1 = websocket.Upgrader{
+	CheckOrigin: func(r *http.Request) bool {
+		return true // allow all origins (adjust as needed)
+	},
+}
 
 func broadcast(message []byte, sender *websocket.Conn) {
 	mu.Lock()
@@ -48,6 +53,13 @@ func broadcast(message []byte, sender *websocket.Conn) {
 }
 
 func wsHandler(w http.ResponseWriter, r *http.Request) {
+	password := r.URL.Query().Get("password")
+	if err := checkPassword(password); err != nil {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		log.Println("Unauthorized connection attempt from", r.RemoteAddr)
+		return
+	}
+
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		log.Println("Error upgrading:", err)
@@ -77,12 +89,8 @@ func wsHandler(w http.ResponseWriter, r *http.Request) {
 	log.Printf("Client disconnected: %s", r.RemoteAddr)
 }
 
-func server() {
+func RunServer() {
 	http.HandleFunc("/ws", wsHandler)
-	log.Println("Server started on :8080")
-	log.Fatal(http.ListenAndServe(":8080", nil))
-}
-
-func client() {
-	server()
+	log.Println("Server started on :8000")
+	log.Fatal(http.ListenAndServe(":8000", nil))
 }
